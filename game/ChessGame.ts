@@ -6,7 +6,7 @@ export default class ChessGame {
   currentPosition: Position;
   status: GameStatuses = GameStatuses.ACTIVE;
 
-  constructor({ fenString = Position.startFen, moves }: { fenString?: string; moves?: string; } = {}) {
+  constructor({ fenString = Position.startFen }: { fenString?: string; moves?: string; } = {}) {
     this.currentPosition = new Position(fenString);
     // moves
     this.updateStatus();

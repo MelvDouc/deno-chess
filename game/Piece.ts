@@ -1,11 +1,14 @@
 import { Colors, Wings } from "./constants.ts";
 
 export default class Piece {
+  // Indicates wether a pawn moves up or down the board.
+  // Used for move generation.
   static readonly pawnDirections = {
     [Colors.WHITE]: -1,
     [Colors.BLACK]: 1
   };
 
+  // The initial placement of each rook. Used for castling.
   static readonly initialRookIndices = {
     [Colors.WHITE]: {
       [Wings.QUEEN_SIDE]: 56,
@@ -17,6 +20,7 @@ export default class Piece {
     }
   };
 
+  // Where a king will be placed after castling.
   static readonly castledKingIndices = {
     [Colors.WHITE]: {
       [Wings.QUEEN_SIDE]: 58,
@@ -38,6 +42,7 @@ export default class Piece {
     [Colors.BLACK]: 1
   };
 
+  // Used to convert the piece characters in an FEN string to instances of this class.
   static fromInitial(initial: string): Piece {
     const lowercase = initial.toLowerCase();
     return new Piece(
@@ -46,18 +51,21 @@ export default class Piece {
     );
   }
 
+  // Needed to determine if castling rights should be unset when a rook moves or is captured.
   static hasRookMoved(index: number, color: Colors): boolean {
     return Object.values(Piece.initialRookIndices[color]).includes(index);
   }
 
   readonly color: Colors;
   type: PieceTypes;
+  index = -1;
 
   constructor(color: Colors, type: PieceTypes) {
     this.color = color;
     this.type = type;
   }
 
+  // Used to convert a position to an FEN string.
   get initial(): string {
     const _initial = initialsByPieceType[this.type];
     return (this.color === Colors.WHITE) ? _initial.toUpperCase() : _initial;
@@ -67,6 +75,7 @@ export default class Piece {
     return Piece.pawnDirections[this.color];
   }
 
+  // Needed to determine in what directions a piece moves.
   get offsets(): PieceOffsets {
     if (this.type === PieceTypes.PAWN)
       return {
@@ -76,6 +85,7 @@ export default class Piece {
     return figureOffsets[this.type];
   }
 
+  // Makes it unnecessary to export the PieceTypes enum.
   isBishop() { return this.type === PieceTypes.BISHOP; }
   isKing() { return this.type === PieceTypes.KING; }
   isKnight() { return this.type === PieceTypes.KNIGHT; }
@@ -83,6 +93,14 @@ export default class Piece {
   isQueen() { return this.type === PieceTypes.QUEEN; }
   isRook() { return this.type === PieceTypes.ROOK; }
 
+  isOnInitialRank(): boolean {
+    const x = Math.floor(this.index / 8);
+    if (this.type === PieceTypes.PAWN)
+      return x === Piece.initialPawnRanks[this.color];
+    return x === Piece.initialPieceRanks[this.color];
+  }
+
+  // See previous comment.
   promoteTo(type: PromotionType): void {
     switch (type) {
       case "Q":

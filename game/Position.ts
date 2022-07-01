@@ -51,6 +51,7 @@ export default class Position {
     ].join(" ");
   }
 
+  // Get all legal moves.
   getMoves(): Move[] {
     const moves: Move[] = [];
     // The move-testing methods will cause `for (const [srcIndex, piece] of this.pieceMap)`
@@ -61,21 +62,19 @@ export default class Position {
       if (piece.color !== this.colorToMove)
         continue;
 
-      for (const destIndex of this.pieceMap.pseudoLegalMoves(srcIndex, piece, this.enPassantIndex)) {
+      for (const destIndex of this.pieceMap.pseudoLegalMoves(piece, this.enPassantIndex)) {
+        // Testing the move for check and undoing it.
         const undoInfo = this.startMove(srcIndex, destIndex);
-        if (!this.isCheck())
+        if (!this.isCheck()) {
           moves.push({ srcIndex, destIndex });
+        }
         this.undoMove(undoInfo);
       }
     }
 
     if (!this.isCheck()) {
       const kingIndex = this.pieceMap.kingIndices[this.colorToMove];
-      for (const destIndex of this.pieceMap.castlingMoves(
-        kingIndex,
-        this.colorToMove,
-        this.castlingRights
-      )) {
+      for (const destIndex of this.pieceMap.castlingMoves(this.pieceMap.get(kingIndex)!, this.castlingRights)) {
         moves.push({ srcIndex: kingIndex, destIndex });
       }
     }
@@ -86,8 +85,8 @@ export default class Position {
   isCheck(): boolean {
     const kingIndex = this.pieceMap.kingIndices[this.colorToMove];
 
-    for (const [pieceIndex, piece] of this.pieceMap)
-      if (piece.color === ~this.colorToMove && this.pieceMap.doesPieceAttack(pieceIndex, kingIndex))
+    for (const piece of this.pieceMap.values())
+      if (piece.color === ~this.colorToMove && this.pieceMap.doesPieceAttack(piece, kingIndex))
         return true;
 
     return false;
@@ -101,6 +100,7 @@ export default class Position {
     const fenString = this.fenString.replace(trimMoveNumbersRegex, "");
     let count = 0;
 
+    // Skipping previous positions with a different color to move.
     for (let current = this.prev.prev; current; current = current.prev?.prev ?? null) {
       if (current.fenString.replace(trimMoveNumbersRegex, "") === fenString)
         count++;
@@ -111,6 +111,8 @@ export default class Position {
     return false;
   }
 
+  // Move a piece to its destination square and return which pieces were moves
+  // so the move can be undone.
   startMove(srcIndex: number, destIndex: number): UndoInfo {
     const srcPiece = this.pieceMap.get(srcIndex)!,
       destPiece = this.pieceMap.get(destIndex) ?? null;
@@ -140,6 +142,10 @@ export default class Position {
       else
         this.pieceMap.delete(+index);
     }
+  }
+
+  clone(): Position {
+    return new Position(this.fenString);
   }
 
   log(): void {
