@@ -1,21 +1,14 @@
 import { Colors, Wings } from "./constants.ts";
+import Coordinates, { c } from "./Coordinates.ts";
 import PieceMap from "./PieceMap.ts";
 
 export default class Position {
   static readonly startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kqKQ - 0 1";
 
-  static indexToNotation(index: number): string {
-    return notations[index] ?? "-";
-  }
-
-  static notationToIndex(notation: string): number {
-    return notations.indexOf(notation);
-  }
-
   readonly pieceMap: PieceMap;
   readonly castlingRights: CastlingRights;
   colorToMove: Colors;
-  enPassantIndex: number;
+  enPassantCoords: Coordinates | null;
   halfMoveClock: number;
   fullMoveNumber: number;
   prev: Position | null = null;
@@ -35,7 +28,7 @@ export default class Position {
     this.pieceMap = PieceMap.fromPieceString(pieceString);
     this.colorToMove = (colorChar === "w") ? Colors.WHITE : Colors.BLACK;
     this.castlingRights = castlingStringToObject(castlingString);
-    this.enPassantIndex = Position.notationToIndex(enPassantSquare);
+    this.enPassantCoords = Coordinates.fromNotation(enPassantSquare);
     this.halfMoveClock = +halfMoveClock;
     this.fullMoveNumber = +fullMoveNumber;
   }
@@ -45,37 +38,37 @@ export default class Position {
       this.pieceMap.toString(),
       (this.colorToMove === Colors.WHITE) ? "w" : "b",
       castlingRightsToString(this.castlingRights),
-      Position.indexToNotation(this.enPassantIndex),
+      this.enPassantCoords?.notation ?? "-",
       String(this.halfMoveClock),
       String(this.fullMoveNumber)
     ].join(" ");
   }
 
   // Get all legal moves.
-  getMoves(): Move[] {
-    const moves: Move[] = [];
+  getMoves() {
+    const moves = [];
     // The move-testing methods will cause `for (const [srcIndex, piece] of this.pieceMap)`
     // to become an infinite loop.
     const entries = [...this.pieceMap];
 
-    for (const [srcIndex, piece] of entries) {
+    for (const [srcCoords, piece] of entries) {
       if (piece.color !== this.colorToMove)
         continue;
 
-      for (const destIndex of this.pieceMap.pseudoLegalMoves(piece, this.enPassantIndex)) {
+      for (const destCoords of this.pieceMap.pseudoLegalMoves(piece, this.enPassantCoords)) {
         // Testing the move for check and undoing it.
-        const undoInfo = this.startMove(srcIndex, destIndex);
+        const undoInfo = this.startMove(srcCoords, destCoords);
         if (!this.isCheck()) {
-          moves.push({ srcIndex, destIndex });
+          moves.push({ srcCoords, destCoords });
         }
         this.undoMove(undoInfo);
       }
     }
 
     if (!this.isCheck()) {
-      const kingIndex = this.pieceMap.kingIndices[this.colorToMove];
-      for (const destIndex of this.pieceMap.castlingMoves(this.pieceMap.get(kingIndex)!, this.castlingRights)) {
-        moves.push({ srcIndex: kingIndex, destIndex });
+      const kingCoords = this.pieceMap.kingCoords[this.colorToMove];
+      for (const destCoords of this.pieceMap.castlingMoves(this.pieceMap.get(kingCoords)!, this.castlingRights)) {
+        moves.push({ srcCoords: kingCoords, destCoords });
       }
     }
 
@@ -83,13 +76,7 @@ export default class Position {
   }
 
   isCheck(): boolean {
-    const kingIndex = this.pieceMap.kingIndices[this.colorToMove];
-
-    for (const piece of this.pieceMap.values())
-      if (piece.color === ~this.colorToMove && this.pieceMap.doesPieceAttack(piece, kingIndex))
-        return true;
-
-    return false;
+    return this.pieceMap.getAttackedCoords(~this.colorToMove).has(this.pieceMap.kingCoords[this.colorToMove]);
   }
 
   isTripleRepetition(): boolean {
@@ -113,34 +100,33 @@ export default class Position {
 
   // Move a piece to its destination square and return which pieces were moves
   // so the move can be undone.
-  startMove(srcIndex: number, destIndex: number): UndoInfo {
-    const srcPiece = this.pieceMap.get(srcIndex)!,
-      destPiece = this.pieceMap.get(destIndex) ?? null;
-    const undoInfo = {
-      [srcIndex]: srcPiece,
-      [destIndex]: destPiece
-    };
+  startMove(srcCoords: Coordinates, destCoords: Coordinates): [Coordinates, Piece | null][] {
+    const srcPiece = this.pieceMap.get(srcCoords)!,
+      destPiece = this.pieceMap.get(destCoords) ?? null;
+    const undoInfo: [Coordinates, Piece | null][] = [
+      [srcCoords, srcPiece],
+      [destCoords, destPiece]
+    ];
 
-    this.pieceMap.set(destIndex, srcPiece);
-    this.pieceMap.delete(srcIndex);
+    this.pieceMap.set(destCoords, srcPiece);
+    this.pieceMap.delete(srcCoords);
 
-    if (srcPiece.isPawn() && destIndex === this.enPassantIndex) {
-      const enPassantPawnIndex = destIndex - srcPiece.direction * 8,
-        enPassantPawn = this.pieceMap.get(enPassantPawnIndex)!;
-      undoInfo[enPassantPawnIndex] = enPassantPawn;
-      this.pieceMap.delete(enPassantPawnIndex);
+    if (srcPiece.isPawn() && destCoords === this.enPassantCoords) {
+      const enPassantCoords = destCoords.getPeer({ xOffset: 0, yOffset: -srcPiece.direction })!,
+        enPassantPawn = this.pieceMap.get(enPassantCoords)!;
+      undoInfo.push([enPassantCoords, enPassantPawn]);
+      this.pieceMap.delete(enPassantCoords);
     }
 
     return undoInfo;
   }
 
-  undoMove(undoInfo: UndoInfo): void {
-    for (const index in undoInfo) {
-      const piece = undoInfo[+index];
+  undoMove(undoInfo: [Coordinates, Piece | null][]): void {
+    for (const [coords, piece] of undoInfo) {
       if (piece)
-        this.pieceMap.set(+index, piece);
+        this.pieceMap.set(coords, piece);
       else
-        this.pieceMap.delete(+index);
+        this.pieceMap.delete(coords);
     }
   }
 
@@ -152,17 +138,12 @@ export default class Position {
     for (let x = 0; x < 8; x++) {
       const row = [];
       for (let y = 0; y < 8; y++) {
-        row.push(this.pieceMap.get(x * 8 + y)?.initial ?? "-");
+        row.push(this.pieceMap.get(c({ x, y })!)?.initial ?? "-");
       }
       console.log(row.join(" "));
     }
   }
 }
-
-const notations = Array.from({ length: 8 * 8 }, (_, i) => {
-  const { x, y } = PieceMap.indexToCoords(i);
-  return String.fromCharCode(y + 97) + String(8 - x);
-});
 
 // ===== ===== ===== ===== =====
 // Castling

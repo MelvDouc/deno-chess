@@ -1,9 +1,9 @@
 import { Colors, Wings } from "./constants.ts";
-import { coordsToIndex, indexToCoords } from "./coords.ts";
+import { c } from "./Coordinates.ts";
 import Piece from "./Piece.ts";
 
 // Keeps tracks of the pieces on the board.
-export default class PieceMap extends Map<number, Piece> {
+export default class PieceMap extends Map<Coordinates, Piece> {
   // Convert the piece portion of an FEN string to an instance of this class.
   static fromPieceString(pieceString: string): PieceMap {
     return pieceString
@@ -14,70 +14,83 @@ export default class PieceMap extends Map<number, Piece> {
           .split("")
           .forEach((char, y) => {
             if (char !== emptySquare)
-              acc.set(coordsToIndex({ x, y }), Piece.fromInitial(char));
+              acc.set(c({ x, y })!, Piece.fromInitial(char));
           });
         return acc;
       }, new PieceMap());
   }
 
-  static indexToCoords = indexToCoords;
-
   // Keep track of where each king is placed to more easily to determine whether a position is check.
-  kingIndices: KingIndices;
+  kingCoords: KingCoords;
 
-  constructor(entries?: [number, Piece][]) {
+  constructor(entries?: [Coordinates, Piece][]) {
     super(entries);
-    this.kingIndices = {
-      [Colors.WHITE]: -1,
-      [Colors.BLACK]: -1
-    };
+    this.kingCoords = {} as KingCoords;
   }
 
-  set(index: number, piece: Piece) {
+  set(coords: Coordinates, piece: Piece) {
     if (piece.isKing())
-      this.kingIndices[piece.color] = index;
-    piece.index = index;
-    return super.set(index, piece);
+      this.kingCoords[piece.color] = coords;
+    piece.coords = coords;
+    return super.set(coords, piece);
+  }
+
+  getAttackedCoords(color: Colors): Set<Coordinates> {
+    const attackedCoords = new Set<Coordinates>();
+
+    for (const piece of this.values()) {
+      if (piece.color !== color)
+        continue;
+      for (const coords of this.coordsAttackedByPiece(piece))
+        attackedCoords.add(coords);
+    }
+
+    return attackedCoords;
   }
 
   // Determine whether a piece attacks a given index.
   // Useful to determine if a position is check.
-  doesPieceAttack(piece: Piece, targetIndex: number): boolean {
-    const pieceCoords = indexToCoords(piece.index),
-      squareCoords = indexToCoords(targetIndex);
-    const xDiff = Math.abs(squareCoords.x - pieceCoords.x),
-      yDiff = Math.abs(squareCoords.y - pieceCoords.y);
+  doesPieceAttack(piece: Piece, targetCoords: Coordinates): boolean {
+    const xDiff = Math.abs(targetCoords.x - piece.coords.x),
+      yDiff = Math.abs(targetCoords.y - piece.coords.y);
 
     if (piece.isPawn())
-      return squareCoords.x - pieceCoords.x === piece.direction && yDiff === 1;
+      return targetCoords.x - piece.coords.x === piece.direction && yDiff === 1;
 
     if (piece.isKnight())
       return xDiff * yDiff === 2;
 
     if (piece.isKing())
-      return xDiff === 1 && [0, 1].includes(yDiff)
-        || xDiff === 0 && yDiff === 1;
+      return xDiff <= 1 && yDiff <= 1;
 
-    for (const j of this.indicesAttackedByPiece(piece))
-      if (j === targetIndex)
+    for (const coords of this.coordsAttackedByPiece(piece))
+      if (coords === targetCoords)
         return true;
 
     return false;
   }
 
-  canCastleToWing(wing: Wings, index: number, color: Colors, castlingRights: CastlingRights): boolean {
+  canCastleToWing(
+    wing: Wings,
+    kingCoords: Coordinates,
+    color: Colors,
+    castlingRights: CastlingRights,
+    attackedCoordsSet: Set<Coordinates>
+  ): boolean {
     if (!castlingRights[color][wing])
       return false;
 
-    for (let j = index + wing; j !== Piece.initialRookIndices[color][wing]; j += wing)
-      if (this.has(j))
+    for (const peer of kingCoords.getPeers({ xOffset: 0, yOffset: wing })) {
+      if (peer.y === Piece.initialRookFiles[wing])
+        break;
+      if (this.has(peer))
         return false;
+    }
 
-    for (let j = index + wing; ; j += wing) {
-      for (const piece of this.values())
-        if (piece.color === ~color && this.doesPieceAttack(piece, j))
-          return false;
-      if (j === Piece.castledKingIndices[color][wing])
+    for (const peer of kingCoords.getPeers({ xOffset: 0, yOffset: wing })) {
+      if (attackedCoordsSet.has(peer))
+        return false;
+      if (peer.y === Piece.castledKingFiles[wing])
         break;
     }
 
@@ -89,36 +102,38 @@ export default class PieceMap extends Map<number, Piece> {
     return Array
       .from({ length: 8 }, (_, x) => {
         return Array
-          .from({ length: 8 }, (_, y) => this.get(coordsToIndex({ x, y }))?.initial ?? emptySquare)
+          .from({ length: 8 }, (_, y) => this.get(c({ x, y })!)?.initial ?? emptySquare)
           .join("")
           .replace(/1+/g, ones => String(ones.length));
       })
       .join("/");
   }
 
-  *forwardPawnMoves(pawn: Piece): IndexGenerator {
-    const { index, direction } = pawn;
-    const squareIndex1 = index + 8 * direction;
+  *forwardPawnMoves(pawn: Piece): CoordsGenerator {
+    const { direction } = pawn;
+    const squareCoords1 = pawn.coords.getPeer({ xOffset: direction, yOffset: 0 })!;
 
-    if (!this.has(squareIndex1)) {
-      yield squareIndex1;
+    if (!this.has(squareCoords1)) {
+      yield squareCoords1;
 
       if (pawn.isOnInitialRank()) {
-        const squareIndex2 = index + 8 * direction * 2;
-        if (!this.has(squareIndex2))
-          yield squareIndex2;
+        const squareCoords2 = pawn.coords.getPeer({ xOffset: direction * 2, yOffset: 0 })!;
+        if (!this.has(squareCoords2))
+          yield squareCoords2;
       }
     }
   }
 
-  *castlingMoves(king: Piece, castlingRights: CastlingRights): IndexGenerator {
+  *castlingMoves(king: Piece, castlingRights: CastlingRights): CoordsGenerator {
+    const attackedCoordsSet = this.getAttackedCoords(~king.color);
+
     for (const wing of [Wings.QUEEN_SIDE, Wings.KING_SIDE])
-      if (this.canCastleToWing(wing, king.index, king.color, castlingRights))
-        yield Piece.castledKingIndices[king.color][wing];
+      if (this.canCastleToWing(wing, king.coords, king.color, castlingRights, attackedCoordsSet))
+        yield king.coords.getPeer({ xOffset: 0, yOffset: wing * 2 })!;
   }
 
   // Excludes forward pawn moves and castling moves as they can't be captures.
-  *indicesAttackedByPiece(piece: Piece): IndexGenerator {
+  *coordsAttackedByPiece(piece: Piece): CoordsGenerator {
     if (piece.isPawn() || piece.isKing() || piece.isKnight())
       return yield* shortRangePeers(piece);
 
@@ -126,36 +141,30 @@ export default class PieceMap extends Map<number, Piece> {
   }
 
   // Get the indices a piece could move to ignoring whether it would cause or resolve a check.
-  *pseudoLegalMoves(piece: Piece, enPassantIndex: number): IndexGenerator {
+  *pseudoLegalMoves(piece: Piece, enPassantCoords: Coordinates | null): CoordsGenerator {
     if (piece.isPawn()) {
       yield* this.forwardPawnMoves(piece);
 
-      for (const j of this.indicesAttackedByPiece(piece))
-        if (this.get(j)?.color === ~piece.color || j === enPassantIndex)
-          yield j;
+      for (const coords of this.coordsAttackedByPiece(piece))
+        if (this.get(coords)?.color === ~piece.color || coords === enPassantCoords)
+          yield coords;
 
       return;
     }
 
-    for (const j of this.indicesAttackedByPiece(piece))
-      if (this.get(j)?.color !== piece.color)
-        yield j;
+    for (const coords of this.coordsAttackedByPiece(piece))
+      if (this.get(coords)?.color !== piece.color)
+        yield coords;
   }
 
   // Find the indices attacked by a long range piece.
-  *longRangePeers(piece: Piece): IndexGenerator {
+  *longRangePeers(piece: Piece) {
     const { x: xOffsets, y: yOffsets } = piece.offsets;
-    const coords = indexToCoords(piece.index);
 
     for (let i = 0; i < xOffsets.length; i++) {
-      const xOffset = xOffsets[i];
-      const yOffset = yOffsets[i];
-      let { x, y } = coords;
-
-      while (isInBounds(x += xOffset) && isInBounds(y += yOffset)) {
-        const j = coordsToIndex({ x, y });
-        yield j;
-        if (this.has(j))
+      for (const peer of piece.coords.getPeers({ xOffset: xOffsets[i], yOffset: yOffsets[i] })) {
+        yield peer;
+        if (this.has(peer))
           break;
       }
     }
@@ -166,20 +175,14 @@ export default class PieceMap extends Map<number, Piece> {
 const emptySquare = "1";
 
 // Find the indices attacked by a short range piece.
-function* shortRangePeers(piece: Piece): IndexGenerator {
+function* shortRangePeers(piece: Piece): CoordsGenerator {
   const { x: xOffsets, y: yOffsets } = piece.offsets;
-  const coords = indexToCoords(piece.index);
 
   for (let i = 0; i < xOffsets.length; i++) {
-    const x = coords.x + xOffsets[i];
-    const y = coords.y + yOffsets[i];
-    if (isInBounds(x) && isInBounds(y))
-      yield coordsToIndex({ x, y });
+    const peer = piece.coords.getPeer({ xOffset: xOffsets[i], yOffset: yOffsets[i] });
+    if (peer)
+      yield peer;
   }
-}
-
-function isInBounds(n: number): boolean {
-  return n >= 0 && n < 8;
 }
 
 // function areSameRankOrFile(coords1: Coordinates, coords2: Coordinates): boolean {

@@ -1,13 +1,8 @@
-interface Coordinates {
-  x: number;
-  y: number;
-}
-
-interface Move {
-  srcIndex: number;
-  destIndex: number;
-  promotionType?: PromotionType;
-}
+// interface Move {
+//   srcIndex: number;
+//   destIndex: number;
+//   promotionType?: PromotionType;
+// }
 
 interface PieceOffsets {
   x: number[];
@@ -29,11 +24,10 @@ type CastlingRights = {
   }
 };
 
-type UndoInfo = Record<number, Piece | null>;
-
+type Coordinates = import("./Coordinates.ts").default;
 type Colors = import("./constants.ts").Colors;
 type Wings = import("./constants.ts").Wings;
 type Piece = import("./Piece.ts").default;
 type PromotionType = "Q" | "R" | "B" | "N";
-type IndexGenerator = Generator<number, void, unknown>;
-type KingIndices = { [key in Colors]: number };
+type CoordsGenerator = Generator<Coordinates, void, unknown>;
+type KingCoords = { [key in Colors]: Coordinates };

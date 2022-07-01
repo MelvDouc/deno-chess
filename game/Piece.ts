@@ -9,27 +9,15 @@ export default class Piece {
   };
 
   // The initial placement of each rook. Used for castling.
-  static readonly initialRookIndices = {
-    [Colors.WHITE]: {
-      [Wings.QUEEN_SIDE]: 56,
-      [Wings.KING_SIDE]: 63
-    },
-    [Colors.BLACK]: {
-      [Wings.QUEEN_SIDE]: 0,
-      [Wings.KING_SIDE]: 7
-    }
+  static readonly initialRookFiles = {
+    [Wings.QUEEN_SIDE]: 0,
+    [Wings.KING_SIDE]: 7
   };
 
   // Where a king will be placed after castling.
-  static readonly castledKingIndices = {
-    [Colors.WHITE]: {
-      [Wings.QUEEN_SIDE]: 58,
-      [Wings.KING_SIDE]: 62
-    },
-    [Colors.BLACK]: {
-      [Wings.QUEEN_SIDE]: 2,
-      [Wings.KING_SIDE]: 6
-    }
+  static readonly castledKingFiles = {
+    [Wings.QUEEN_SIDE]: 2,
+    [Wings.KING_SIDE]: 6
   };
 
   static readonly initialPieceRanks = {
@@ -52,13 +40,14 @@ export default class Piece {
   }
 
   // Needed to determine if castling rights should be unset when a rook moves or is captured.
-  static hasRookMoved(index: number, color: Colors): boolean {
-    return Object.values(Piece.initialRookIndices[color]).includes(index);
+  static hasRookMoved(coords: Coordinates, color: Colors): boolean {
+    return coords.x === Piece.initialPieceRanks[color]
+      && Object.values(Piece.initialRookFiles).includes(coords.y);
   }
 
   readonly color: Colors;
   type: PieceTypes;
-  index = -1;
+  coords!: Coordinates;
 
   constructor(color: Colors, type: PieceTypes) {
     this.color = color;
@@ -94,10 +83,9 @@ export default class Piece {
   isRook() { return this.type === PieceTypes.ROOK; }
 
   isOnInitialRank(): boolean {
-    const x = Math.floor(this.index / 8);
     if (this.type === PieceTypes.PAWN)
-      return x === Piece.initialPawnRanks[this.color];
-    return x === Piece.initialPieceRanks[this.color];
+      return this.coords.x === Piece.initialPawnRanks[this.color];
+    return this.coords.x === Piece.initialPieceRanks[this.color];
   }
 
   // See previous comment.

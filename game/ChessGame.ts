@@ -1,4 +1,5 @@
 import { Colors, Wings } from "./constants.ts";
+import Coordinates, { c } from "./Coordinates.ts";
 import Piece from "./Piece.ts";
 import Position from "./Position.ts";
 
@@ -12,25 +13,22 @@ export default class ChessGame {
     this.updateStatus();
   }
 
-  playMove(srcIndex: number, destIndex: number, promotionType?: PromotionType): void {
+  playMove(srcCoords: Coordinates, destCoords: Coordinates, promotionType?: PromotionType): void {
     if (this.status !== GameStatuses.ACTIVE)
       return console.log("Game is inactive.");
 
     const nextPosition = new Position(this.currentPosition.fenString);
     const moves = nextPosition.getMoves();
 
-    if (!moves.some(move => move.srcIndex === srcIndex && move.destIndex === destIndex)) {
-      console.log(
-        moves.map(({ srcIndex, destIndex }) => [Position.indexToNotation(srcIndex), Position.indexToNotation(destIndex)])
-      );
+    if (!moves.some(move => move.srcCoords === srcCoords && move.destCoords === destCoords)) {
       throw new Error("Illegal move.");
     }
 
-    const srcPiece = nextPosition.pieceMap.get(srcIndex)!,
-      destPiece = nextPosition.pieceMap.get(destIndex);
+    const srcPiece = nextPosition.pieceMap.get(srcCoords)!,
+      destPiece = nextPosition.pieceMap.get(destCoords);
     const isSrcPiecePawn = srcPiece.isPawn(),
       isPawnMoveOrCapture = isSrcPiecePawn || !!destPiece;
-    nextPosition.startMove(srcIndex, destIndex);
+    nextPosition.startMove(srcCoords, destCoords);
 
     // unset castling rights on king move
     if (srcPiece.isKing()) {
@@ -38,28 +36,31 @@ export default class ChessGame {
       nextPosition.castlingRights[srcPiece.color][Wings.KING_SIDE] = false;
 
       // move rook on castling
-      if (Math.abs(destIndex - srcIndex) === 2) {
-        const wing = getWing(destIndex);
-        nextPosition.startMove(Piece.initialRookIndices[srcPiece.color][wing], destIndex - wing);
+      if (Math.abs(destCoords.y - srcCoords.y) === 2) {
+        const wing = getWing(destCoords.y);
+        nextPosition.startMove(
+          c({ x: srcCoords.x, y: Piece.initialRookFiles[wing] })!,
+          c({ x: srcCoords.x, y: destCoords.y - wing })!
+        );
       }
     }
 
     // unset castling rights on rook move
-    if (srcPiece.isRook() && !Piece.hasRookMoved(srcIndex, srcPiece.color))
-      nextPosition.castlingRights[srcPiece.color][getWing(destIndex)] = false;
+    if (srcPiece.isRook() && !Piece.hasRookMoved(srcCoords, srcPiece.color))
+      nextPosition.castlingRights[srcPiece.color][getWing(destCoords.y)] = false;
 
     // unset castling rights on rook capture
-    if (destPiece?.isRook() && !Piece.hasRookMoved(destIndex, ~srcPiece.color))
-      nextPosition.castlingRights[~srcPiece.color][getWing(srcIndex)] = false;
+    if (destPiece?.isRook() && !Piece.hasRookMoved(destCoords, ~srcPiece.color))
+      nextPosition.castlingRights[~srcPiece.color][getWing(srcCoords.y)] = false;
 
     // promotion
-    if (isSrcPiecePawn && Math.floor(destIndex / 8) === Piece.initialPieceRanks[~srcPiece.color])
+    if (isSrcPiecePawn && destCoords.x === Piece.initialPieceRanks[~srcPiece.color])
       srcPiece.promoteTo(promotionType ?? "Q");
 
     // update en passant
-    nextPosition.enPassantIndex = (isSrcPiecePawn && destIndex - srcIndex === srcPiece.direction * 8 * 2)
-      ? (srcIndex + destIndex) / 2
-      : -1;
+    nextPosition.enPassantCoords = (isSrcPiecePawn && Math.abs(destCoords.x - srcCoords.x) === 2)
+      ? c({ x: destCoords.x - srcPiece.direction, y: destCoords.y })
+      : null;
 
     nextPosition.colorToMove = ~nextPosition.colorToMove;
     nextPosition.halfMoveClock = isPawnMoveOrCapture ? 0 : nextPosition.halfMoveClock + 1;
@@ -70,11 +71,11 @@ export default class ChessGame {
   }
 
   playMoveUsingNotation(e2e4Notation: string) {
-    const srcIndex = Position.notationToIndex(e2e4Notation.slice(0, 2)),
-      destIndex = Position.notationToIndex(e2e4Notation.slice(2, 4)),
+    const srcCoords = Coordinates.fromNotation(e2e4Notation.slice(0, 2)),
+      destCoords = Coordinates.fromNotation(e2e4Notation.slice(2, 4)),
       promotionType = e2e4Notation[5];
 
-    this.playMove(srcIndex, destIndex, promotionType as PromotionType | undefined);
+    this.playMove(srcCoords!, destCoords!, promotionType as PromotionType | undefined);
   }
 
   updateStatus() {
@@ -124,6 +125,6 @@ enum GameStatuses {
   DRAW_BY_TRIPLE_REPETITION
 }
 
-function getWing(index: number): Wings {
-  return index % 8 < 4 ? Wings.QUEEN_SIDE : Wings.KING_SIDE;
+function getWing(y: number): Wings {
+  return y % 8 < 4 ? Wings.QUEEN_SIDE : Wings.KING_SIDE;
 }
