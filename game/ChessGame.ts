@@ -9,18 +9,19 @@ export default class ChessGame {
 
   constructor({ fenString = Position.startFen }: { fenString?: string; moves?: string; } = {}) {
     this.currentPosition = new Position(fenString);
-    // moves
-    this.updateStatus();
   }
 
   playMove(srcCoords: Coordinates, destCoords: Coordinates, promotionType?: PromotionType): void {
-    if (this.status !== GameStatuses.ACTIVE)
-      return console.log("Game is inactive.");
-
-    const nextPosition = new Position(this.currentPosition.fenString);
+    const nextPosition = this.currentPosition.clone();
     const moves = nextPosition.getMoves();
 
+    this.updateStatus(moves.length);
+
+    if (this.status !== GameStatuses.ACTIVE)
+      return console.log(`Game is inactive: ${this.currentPosition.fenString}`);
+
     if (!moves.some(move => move.srcCoords === srcCoords && move.destCoords === destCoords)) {
+      console.log(moves, srcCoords, destCoords);
       throw new Error("Illegal move.");
     }
 
@@ -67,10 +68,12 @@ export default class ChessGame {
     nextPosition.colorToMove === Colors.WHITE && nextPosition.fullMoveNumber++;
 
     this.addNextPosition(nextPosition);
-    this.updateStatus();
   }
 
   playMoveUsingNotation(e2e4Notation: string) {
+    if (!/^([a-h][1-8]){2}[QRBN]?$/.test(e2e4Notation))
+      throw new Error("Invalid move notation.");
+
     const srcCoords = Coordinates.fromNotation(e2e4Notation.slice(0, 2)),
       destCoords = Coordinates.fromNotation(e2e4Notation.slice(2, 4)),
       promotionType = e2e4Notation[5];
@@ -78,8 +81,13 @@ export default class ChessGame {
     this.playMove(srcCoords!, destCoords!, promotionType as PromotionType | undefined);
   }
 
-  updateStatus() {
-    if (this.currentPosition.getMoves().length) {
+  updateStatus(movesLength: number) {
+    if (this.currentPosition.halfMoveClock >= 50) {
+      this.status = GameStatuses.DRAW_BY_FIFTY_MOVE_RULE;
+      return;
+    }
+
+    if (movesLength) {
       this.status = this.currentPosition.isTripleRepetition()
         ? GameStatuses.DRAW_BY_TRIPLE_REPETITION
         : GameStatuses.ACTIVE;
@@ -122,7 +130,8 @@ enum GameStatuses {
   ACTIVE,
   CHECKMATE,
   STALEMATE,
-  DRAW_BY_TRIPLE_REPETITION
+  DRAW_BY_TRIPLE_REPETITION,
+  DRAW_BY_FIFTY_MOVE_RULE
 }
 
 function getWing(y: number): Wings {

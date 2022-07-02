@@ -46,7 +46,7 @@ export default class Position {
 
   // Get all legal moves.
   getMoves() {
-    const moves = [];
+    const moves: Move[] = [];
     // The move-testing methods will cause `for (const [srcIndex, piece] of this.pieceMap)`
     // to become an infinite loop.
     const entries = [...this.pieceMap];

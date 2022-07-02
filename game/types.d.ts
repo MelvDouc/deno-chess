@@ -1,8 +1,7 @@
-// interface Move {
-//   srcIndex: number;
-//   destIndex: number;
-//   promotionType?: PromotionType;
-// }
+interface Move {
+  srcCoords: Coordinates;
+  destCoords: Coordinates;
+}
 
 interface PieceOffsets {
   x: number[];

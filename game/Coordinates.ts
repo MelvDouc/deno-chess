@@ -1,26 +1,29 @@
 export default class Coordinates {
-  static all: Record<number, Record<number, Coordinates>> = {};
+  static #all: Record<number, Record<number, Coordinates>> = {};
+  static #moveNotationRegex = /^[a-h][1-8]$/;
 
   static {
     for (let x = 0; x < 8; x++) {
-      this.all[x] = {};
+      this.#all[x] = {};
       for (let y = 0; y < 8; y++) {
-        this.all[x][y] = new Coordinates(x, y);
+        this.#all[x][y] = new Coordinates(x, y);
       }
     }
   }
 
-  static isInBounds(n: number) {
-    return n >= 0 && n < 8;
+  static get(x: number, y: number) {
+    if (x in Coordinates.#all && y in Coordinates.#all[x])
+      return Coordinates.#all[x][y];
+    return null;
   }
 
   static fromNotation(notation: string): Coordinates | null {
-    if (!/^[a-h][1-8]$/.test(notation))
+    if (!Coordinates.#moveNotationRegex.test(notation))
       return null;
 
     const x = 8 - +notation[1],
       y = notation[0].charCodeAt(0) - 97;
-    return Coordinates.all[x][y];
+    return Coordinates.#all[x][y];
   }
 
   readonly x: number;
@@ -38,24 +41,15 @@ export default class Coordinates {
   }
 
   getPeer({ xOffset, yOffset }: { xOffset: number; yOffset: number; }) {
-    const x = this.x + xOffset,
-      y = this.y + yOffset;
-    return (Coordinates.isInBounds(x) && Coordinates.isInBounds(y))
-      ? Coordinates.all[x][y]
-      : null;
+    return Coordinates.get(this.x + xOffset, this.y + yOffset);
   }
 
   *getPeers(offsets: { xOffset: number; yOffset: number; }) {
-    let peer = this.getPeer(offsets);
-    while (peer) {
+    for (let peer = this.getPeer(offsets); peer; peer = peer.getPeer(offsets))
       yield peer;
-      peer = peer.getPeer(offsets);
-    }
   }
 }
 
-export function c(coords: { x: number; y: number; }): Coordinates | null {
-  if (Coordinates.isInBounds(coords.x) && Coordinates.isInBounds(coords.y))
-    return Coordinates.all[coords.x][coords.y];
-  return null;
+export function c({ x, y }: { x: number; y: number; }): Coordinates | null {
+  return Coordinates.get(x, y);
 }
