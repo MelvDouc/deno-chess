@@ -1,5 +1,6 @@
 import { Colors, Wings } from "./constants.ts";
-import Coordinates, { c } from "./Coordinates.ts";
+import Coordinates from "./Coordinates.ts";
+import Piece from "./Piece.ts";
 import PieceMap from "./PieceMap.ts";
 
 export default class Position {
@@ -57,9 +58,10 @@ export default class Position {
 
       for (const destCoords of this.pieceMap.pseudoLegalMoves(piece, this.enPassantCoords)) {
         // Testing the move for check and undoing it.
+        const isPromotion = piece.isPawn() && destCoords.x === Piece.initialPieceRanks[~piece.color];
         const undoInfo = this.startMove(srcCoords, destCoords);
         if (!this.isCheck()) {
-          moves.push({ srcCoords, destCoords });
+          moves.push({ srcCoords, destCoords, isPromotion });
         }
         this.undoMove(undoInfo);
       }
@@ -68,7 +70,7 @@ export default class Position {
     if (!this.isCheck()) {
       const kingCoords = this.pieceMap.kingCoords[this.colorToMove];
       for (const destCoords of this.pieceMap.castlingMoves(this.pieceMap.get(kingCoords)!, this.castlingRights)) {
-        moves.push({ srcCoords: kingCoords, destCoords });
+        moves.push({ srcCoords: kingCoords, destCoords, isPromotion: false });
       }
     }
 
@@ -130,6 +132,50 @@ export default class Position {
     }
   }
 
+  playMove({ srcCoords, destCoords, isPromotion, promotionType }: Move): this {
+    const srcPiece = this.pieceMap.get(srcCoords)!,
+      destPiece = this.pieceMap.get(destCoords);
+    const isSrcPiecePawn = srcPiece.isPawn(),
+      isPawnMoveOrCapture = isSrcPiecePawn || !!destPiece;
+    this.startMove(srcCoords, destCoords);
+
+    // unset castling rights on king move
+    if (srcPiece.isKing()) {
+      this.castlingRights[srcPiece.color][Wings.QUEEN_SIDE] = false;
+      this.castlingRights[srcPiece.color][Wings.KING_SIDE] = false;
+
+      // move rook on castling
+      if (Math.abs(destCoords.y - srcCoords.y) === 2) {
+        const { wing } = srcPiece;
+        this.startMove(
+          Coordinates.get(srcCoords.x, Piece.initialRookFiles[wing])!,
+          destCoords.getPeer({ xOffset: 0, yOffset: -wing })!
+        );
+      }
+    }
+
+    // unset castling rights on rook move
+    if (srcPiece.isRook() && !Piece.hasRookMoved(srcCoords, srcPiece.color))
+      this.castlingRights[srcPiece.color][srcPiece.wing] = false;
+
+    // unset castling rights on rook capture
+    if (destPiece?.isRook() && !Piece.hasRookMoved(destCoords, ~srcPiece.color))
+      this.castlingRights[~srcPiece.color][destPiece.wing] = false;
+
+    if (isPromotion)
+      srcPiece.promoteTo(promotionType ?? "Q");
+
+    // update en passant
+    this.enPassantCoords = (isSrcPiecePawn && Math.abs(destCoords.x - srcCoords.x) === 2)
+      ? srcCoords.getPeer({ xOffset: srcPiece.direction, yOffset: 0 })
+      : null;
+
+    this.colorToMove = ~this.colorToMove;
+    this.halfMoveClock = isPawnMoveOrCapture ? 0 : this.halfMoveClock + 1;
+    this.colorToMove === Colors.WHITE && this.fullMoveNumber++;
+    return this;
+  }
+
   clone(): Position {
     return new Position(this.fenString);
   }
@@ -138,7 +184,7 @@ export default class Position {
     for (let x = 0; x < 8; x++) {
       const row = [];
       for (let y = 0; y < 8; y++) {
-        row.push(this.pieceMap.get(c({ x, y })!)?.initial ?? "-");
+        row.push(this.pieceMap.get(Coordinates.get(x, y)!)?.initial ?? "-");
       }
       console.log(row.join(" "));
     }

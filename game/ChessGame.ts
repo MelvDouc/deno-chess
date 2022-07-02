@@ -1,72 +1,27 @@
-import { Colors, Wings } from "./constants.ts";
-import Coordinates, { c } from "./Coordinates.ts";
-import Piece from "./Piece.ts";
+import Coordinates from "./Coordinates.ts";
 import Position from "./Position.ts";
 
 export default class ChessGame {
   currentPosition: Position;
-  status: GameStatuses = GameStatuses.ACTIVE;
 
   constructor({ fenString = Position.startFen }: { fenString?: string; moves?: string; } = {}) {
     this.currentPosition = new Position(fenString);
   }
 
   playMove(srcCoords: Coordinates, destCoords: Coordinates, promotionType?: PromotionType): void {
-    const nextPosition = this.currentPosition.clone();
-    const moves = nextPosition.getMoves();
-
-    this.updateStatus(moves.length);
-
-    if (this.status !== GameStatuses.ACTIVE)
+    if (this.getStatus() !== GameStatuses.ACTIVE)
       return console.log(`Game is inactive: ${this.currentPosition.fenString}`);
 
-    if (!moves.some(move => move.srcCoords === srcCoords && move.destCoords === destCoords)) {
+    const moves = this.currentPosition.getMoves();
+    const move = moves.find(move => move.srcCoords === srcCoords && move.destCoords === destCoords);
+
+    if (!move) {
       console.log(moves, srcCoords, destCoords);
       throw new Error("Illegal move.");
     }
 
-    const srcPiece = nextPosition.pieceMap.get(srcCoords)!,
-      destPiece = nextPosition.pieceMap.get(destCoords);
-    const isSrcPiecePawn = srcPiece.isPawn(),
-      isPawnMoveOrCapture = isSrcPiecePawn || !!destPiece;
-    nextPosition.startMove(srcCoords, destCoords);
-
-    // unset castling rights on king move
-    if (srcPiece.isKing()) {
-      nextPosition.castlingRights[srcPiece.color][Wings.QUEEN_SIDE] = false;
-      nextPosition.castlingRights[srcPiece.color][Wings.KING_SIDE] = false;
-
-      // move rook on castling
-      if (Math.abs(destCoords.y - srcCoords.y) === 2) {
-        const wing = getWing(destCoords.y);
-        nextPosition.startMove(
-          c({ x: srcCoords.x, y: Piece.initialRookFiles[wing] })!,
-          c({ x: srcCoords.x, y: destCoords.y - wing })!
-        );
-      }
-    }
-
-    // unset castling rights on rook move
-    if (srcPiece.isRook() && !Piece.hasRookMoved(srcCoords, srcPiece.color))
-      nextPosition.castlingRights[srcPiece.color][getWing(destCoords.y)] = false;
-
-    // unset castling rights on rook capture
-    if (destPiece?.isRook() && !Piece.hasRookMoved(destCoords, ~srcPiece.color))
-      nextPosition.castlingRights[~srcPiece.color][getWing(srcCoords.y)] = false;
-
-    // promotion
-    if (isSrcPiecePawn && destCoords.x === Piece.initialPieceRanks[~srcPiece.color])
-      srcPiece.promoteTo(promotionType ?? "Q");
-
-    // update en passant
-    nextPosition.enPassantCoords = (isSrcPiecePawn && Math.abs(destCoords.x - srcCoords.x) === 2)
-      ? c({ x: destCoords.x - srcPiece.direction, y: destCoords.y })
-      : null;
-
-    nextPosition.colorToMove = ~nextPosition.colorToMove;
-    nextPosition.halfMoveClock = isPawnMoveOrCapture ? 0 : nextPosition.halfMoveClock + 1;
-    nextPosition.colorToMove === Colors.WHITE && nextPosition.fullMoveNumber++;
-
+    const nextPosition = this.currentPosition.clone();
+    nextPosition.playMove({ ...move, promotionType });
     this.addNextPosition(nextPosition);
   }
 
@@ -81,20 +36,16 @@ export default class ChessGame {
     this.playMove(srcCoords!, destCoords!, promotionType as PromotionType | undefined);
   }
 
-  updateStatus(movesLength: number) {
-    if (this.currentPosition.halfMoveClock >= 50) {
-      this.status = GameStatuses.DRAW_BY_FIFTY_MOVE_RULE;
-      return;
-    }
+  getStatus() {
+    if (this.currentPosition.halfMoveClock >= 50)
+      return GameStatuses.DRAW_BY_FIFTY_MOVE_RULE;
 
-    if (movesLength) {
-      this.status = this.currentPosition.isTripleRepetition()
+    if (this.currentPosition.getMoves().length)
+      return this.currentPosition.isTripleRepetition()
         ? GameStatuses.DRAW_BY_TRIPLE_REPETITION
         : GameStatuses.ACTIVE;
-      return;
-    }
 
-    this.status = this.currentPosition.isCheck()
+    return this.currentPosition.isCheck()
       ? GameStatuses.CHECKMATE
       : GameStatuses.STALEMATE;
   }
@@ -132,8 +83,4 @@ enum GameStatuses {
   STALEMATE,
   DRAW_BY_TRIPLE_REPETITION,
   DRAW_BY_FIFTY_MOVE_RULE
-}
-
-function getWing(y: number): Wings {
-  return y % 8 < 4 ? Wings.QUEEN_SIDE : Wings.KING_SIDE;
 }

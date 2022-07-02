@@ -11,7 +11,7 @@ export default class Coordinates {
     }
   }
 
-  static get(x: number, y: number) {
+  static get(x: number, y: number): Coordinates | null {
     if (x in Coordinates.#all && y in Coordinates.#all[x])
       return Coordinates.#all[x][y];
     return null;

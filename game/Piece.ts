@@ -74,6 +74,10 @@ export default class Piece {
     return figureOffsets[this.type];
   }
 
+  get wing() {
+    return this.coords.y < 4 ? Wings.QUEEN_SIDE : Wings.KING_SIDE;
+  }
+
   // Makes it unnecessary to export the PieceTypes enum.
   isBishop() { return this.type === PieceTypes.BISHOP; }
   isKing() { return this.type === PieceTypes.KING; }
