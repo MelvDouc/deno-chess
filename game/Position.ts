@@ -132,17 +132,14 @@ export default class Position {
   playMove(move: Move): this {
     const srcPiece = this.pieceMap.get(move.srcCoords)!,
       destPiece = this.pieceMap.get(move.destCoords);
-    const isPawnMoveOrCapture = srcPiece.isPawn() || !!destPiece;
-
-    if (this.isPromotion(move))
-      srcPiece.promoteTo(move.promotionType ?? "Q");
-
-    // update en passant
-    this.enPassantCoords = this.isDoublePawnMove(move)
-      ? move.srcCoords.getPeer(srcPiece.direction, 0)
-      : null;
+    const isSrcPiecePawn = srcPiece.isPawn(),
+      isPawnMoveOrCapture = isSrcPiecePawn || !!destPiece;
 
     this.startMove(move.srcCoords, move.destCoords);
+
+    // promotion
+    if (isSrcPiecePawn && move.destCoords.x === Piece.initialPieceRanks[~srcPiece.color])
+      srcPiece.promoteTo(move.promotionType ?? "Q");
 
     // unset castling rights on king move
     if (srcPiece.isKing()) {
@@ -150,7 +147,7 @@ export default class Position {
       this.castlingRights[srcPiece.color][Wings.KING_SIDE] = false;
 
       // move rook on castling
-      if (this.isCastling(move)) {
+      if (Math.abs(move.destCoords.y - move.srcCoords.y) === 2) {
         const { wing } = srcPiece;
         this.startMove(
           Coordinates.get(move.srcCoords.x, Piece.initialRookFiles[wing])!,
@@ -167,25 +164,13 @@ export default class Position {
     if (destPiece?.isRook() && !Piece.hasRookMoved(move.destCoords, ~srcPiece.color))
       this.castlingRights[destPiece.color][destPiece.wing] = false;
 
+    this.enPassantCoords = isSrcPiecePawn && Math.abs(move.destCoords.x - move.srcCoords.x) === 2
+      ? move.srcCoords.getPeer(srcPiece.direction, 0)
+      : null;
     this.colorToMove = ~this.colorToMove;
     this.halfMoveClock = isPawnMoveOrCapture ? 0 : this.halfMoveClock + 1;
     this.colorToMove === Colors.WHITE && this.fullMoveNumber++;
     return this;
-  }
-
-  isPromotion(move: Move): boolean {
-    const srcPiece = this.pieceMap.get(move.srcCoords)!;
-    return srcPiece.isPawn()
-      && move.destCoords.x === Piece.initialPieceRanks[~srcPiece.color];
-  }
-
-  isDoublePawnMove(move: Move): boolean {
-    return this.pieceMap.get(move.srcCoords)!.isPawn()
-      && Math.abs(move.destCoords.x - move.srcCoords.x) === 2;
-  }
-
-  isCastling(move: Move): boolean {
-    return Math.abs(move.destCoords.y - move.srcCoords.y) === 2;
   }
 
   clone(): Position {

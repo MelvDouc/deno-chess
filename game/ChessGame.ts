@@ -21,10 +21,16 @@ export default class ChessGame {
     this.#currentPosition = new Position(fenString);
   }
 
-  get board(): (Piece | null)[][] {
+  get board() {
     return Array.from({ length: 8 }, (_, x) => {
       return Array.from({ length: 8 }, (_, y) => {
-        return this.#currentPosition.pieceMap.get(Coordinates.get(x, y)!) ?? null;
+        const piece = this.#currentPosition.pieceMap.get(Coordinates.get(x, y)!);
+        return piece
+          ? {
+            color: ChessGame.Colors[piece.color === Colors.WHITE ? "WHITE" : "BLACK"],
+            type: piece.initial.toLowerCase()
+          }
+          : null;
       });
     });
   }
@@ -79,19 +85,19 @@ export default class ChessGame {
     if (!move)
       return console.log(`Illegal move: ${_srcCoords.notation}-${_destCoords.notation} in ${this.#currentPosition.fenString}`);
 
-    const nextPosition = this.#currentPosition.clone();
-    nextPosition.playMove({ ...move, promotionType });
-    this.#addNextPosition(nextPosition);
+    this.#addNextPosition(
+      this.#currentPosition.clone().playMove({ ...move, promotionType })
+    );
   }
 
-  playMoveUsingNotation(e2e4Notation: string) {
-    if (!/^([a-h][1-8]){2}[QRBN]?$/.test(e2e4Notation))
+  playMoveUsingNotation(e2e4QNotation: string) {
+    if (!/^([a-h][1-8]){2}[QRBN]?$/.test(e2e4QNotation))
       throw new Error("Invalid move notation.");
 
     this.playMove(
-      Coordinates.fromNotation(e2e4Notation.slice(0, 2))!,
-      Coordinates.fromNotation(e2e4Notation.slice(2, 4))!,
-      e2e4Notation[5] as PromotionType | undefined
+      Coordinates.fromNotation(e2e4QNotation.slice(0, 2))!,
+      Coordinates.fromNotation(e2e4QNotation.slice(2, 4))!,
+      e2e4QNotation[5] as PromotionType | undefined
     );
   }
 
@@ -119,6 +125,10 @@ export default class ChessGame {
     if (this.#currentPosition.nextPositions[variationIndex])
       this.#currentPosition = this.#currentPosition.nextPositions[variationIndex];
     return this;
+  }
+
+  logPosition(): void {
+    this.#currentPosition.log();
   }
 
   #addNextPosition(nextPosition: Position) {
