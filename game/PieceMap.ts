@@ -1,5 +1,5 @@
 import { Colors, Wings } from "./constants.ts";
-import { c } from "./Coordinates.ts";
+import Coordinates from "./Coordinates.ts";
 import Piece from "./Piece.ts";
 
 // Keeps tracks of the pieces on the board.
@@ -14,7 +14,7 @@ export default class PieceMap extends Map<Coordinates, Piece> {
           .split("")
           .forEach((char, y) => {
             if (char !== emptySquare)
-              acc.set(c({ x, y })!, Piece.fromInitial(char));
+              acc.set(Coordinates.get(x, y)!, Piece.fromInitial(char));
           });
         return acc;
       }, new PieceMap());
@@ -80,14 +80,14 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     if (!castlingRights[color][wing])
       return false;
 
-    for (const peer of kingCoords.getPeers({ xOffset: 0, yOffset: wing })) {
+    for (const peer of kingCoords.getPeers(0, wing)) {
       if (peer.y === Piece.initialRookFiles[wing])
         break;
       if (this.has(peer))
         return false;
     }
 
-    for (const peer of kingCoords.getPeers({ xOffset: 0, yOffset: wing })) {
+    for (const peer of kingCoords.getPeers(0, wing)) {
       if (attackedCoordsSet.has(peer))
         return false;
       if (peer.y === Piece.castledKingFiles[wing])
@@ -102,7 +102,7 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     return Array
       .from({ length: 8 }, (_, x) => {
         return Array
-          .from({ length: 8 }, (_, y) => this.get(c({ x, y })!)?.initial ?? emptySquare)
+          .from({ length: 8 }, (_, y) => this.get(Coordinates.get(x, y)!)?.initial ?? emptySquare)
           .join("")
           .replace(/1+/g, ones => String(ones.length));
       })
@@ -111,13 +111,13 @@ export default class PieceMap extends Map<Coordinates, Piece> {
 
   *forwardPawnMoves(pawn: Piece): CoordsGenerator {
     const { direction } = pawn;
-    const squareCoords1 = pawn.coords.getPeer({ xOffset: direction, yOffset: 0 })!;
+    const squareCoords1 = pawn.coords.getPeer(direction, 0)!;
 
     if (!this.has(squareCoords1)) {
       yield squareCoords1;
 
       if (pawn.isOnInitialRank()) {
-        const squareCoords2 = pawn.coords.getPeer({ xOffset: direction * 2, yOffset: 0 })!;
+        const squareCoords2 = pawn.coords.getPeer(direction * 2, 0)!;
         if (!this.has(squareCoords2))
           yield squareCoords2;
       }
@@ -129,7 +129,7 @@ export default class PieceMap extends Map<Coordinates, Piece> {
 
     for (const wing of [Wings.QUEEN_SIDE, Wings.KING_SIDE])
       if (this.canCastleToWing(wing, king.coords, king.color, castlingRights, attackedCoordsSet))
-        yield king.coords.getPeer({ xOffset: 0, yOffset: wing * 2 })!;
+        yield king.coords.getPeer(0, wing * 2)!;
   }
 
   // Excludes forward pawn moves and castling moves as they can't be captures.
@@ -162,7 +162,7 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     const { x: xOffsets, y: yOffsets } = piece.offsets;
 
     for (let i = 0; i < xOffsets.length; i++) {
-      for (const peer of piece.coords.getPeers({ xOffset: xOffsets[i], yOffset: yOffsets[i] })) {
+      for (const peer of piece.coords.getPeers(xOffsets[i], yOffsets[i])) {
         yield peer;
         if (this.has(peer))
           break;
@@ -179,17 +179,8 @@ function* shortRangePeers(piece: Piece): CoordsGenerator {
   const { x: xOffsets, y: yOffsets } = piece.offsets;
 
   for (let i = 0; i < xOffsets.length; i++) {
-    const peer = piece.coords.getPeer({ xOffset: xOffsets[i], yOffset: yOffsets[i] });
+    const peer = piece.coords.getPeer(xOffsets[i], yOffsets[i]);
     if (peer)
       yield peer;
   }
 }
-
-// function areSameRankOrFile(coords1: Coordinates, coords2: Coordinates): boolean {
-//   return coords1.x === coords2.x || coords1.y === coords2.y;
-// }
-
-// function areSameDiagonal(coords1: Coordinates, coords2: Coordinates): boolean {
-//   return coords1.x + coords1.y === coords2.x + coords2.y
-//     || coords1.x - coords1.y === coords2.x - coords2.y;
-// }

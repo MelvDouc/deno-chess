@@ -1,15 +1,8 @@
 export default class Coordinates {
-  static #all: Record<number, Record<number, Coordinates>> = {};
+  static #all: Coordinates[][] = Array.from({ length: 8 }, (_, x) => {
+    return Array.from({ length: 8 }, (_, y) => new Coordinates(x, y));
+  });
   static #moveNotationRegex = /^[a-h][1-8]$/;
-
-  static {
-    for (let x = 0; x < 8; x++) {
-      this.#all[x] = {};
-      for (let y = 0; y < 8; y++) {
-        this.#all[x][y] = new Coordinates(x, y);
-      }
-    }
-  }
 
   static get(x: number, y: number): Coordinates | null {
     if (x in Coordinates.#all && y in Coordinates.#all[x])
@@ -40,16 +33,12 @@ export default class Coordinates {
     return this.#notation;
   }
 
-  getPeer({ xOffset, yOffset }: { xOffset: number; yOffset: number; }) {
+  getPeer(xOffset: number, yOffset: number) {
     return Coordinates.get(this.x + xOffset, this.y + yOffset);
   }
 
-  *getPeers(offsets: { xOffset: number; yOffset: number; }) {
-    for (let peer = this.getPeer(offsets); peer; peer = peer.getPeer(offsets))
+  *getPeers(xOffset: number, yOffset: number) {
+    for (let peer = this.getPeer(xOffset, yOffset); peer; peer = peer.getPeer(xOffset, yOffset))
       yield peer;
   }
-}
-
-export function c({ x, y }: { x: number; y: number; }): Coordinates | null {
-  return Coordinates.get(x, y);
 }

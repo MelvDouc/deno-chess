@@ -44,6 +44,7 @@ function _speedTest(callback: Function) {
 
 function countLegalMoves(pos: Position, max: number, color: Colors): number {
   const moves = pos.getMoves();
+
   if (pos.fullMoveNumber === max && pos.colorToMove === color)
     return moves.length;
 
@@ -52,9 +53,8 @@ function countLegalMoves(pos: Position, max: number, color: Colors): number {
   }, 0);
 }
 
-const game = new ChessGame();
 _speedTest(() => {
   console.log(
-    countLegalMoves(game.currentPosition, 3, 0)
+    countLegalMoves(new ChessGame().currentPosition, 3, 0)
   );
 });

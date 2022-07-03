@@ -15,10 +15,8 @@ export default class ChessGame {
     const moves = this.currentPosition.getMoves();
     const move = moves.find(move => move.srcCoords === srcCoords && move.destCoords === destCoords);
 
-    if (!move) {
-      console.log(moves, srcCoords, destCoords);
-      throw new Error("Illegal move.");
-    }
+    if (!move)
+      return console.log(`Illegal move: ${srcCoords.notation}-${destCoords.notation} in ${this.currentPosition.fenString}`);
 
     const nextPosition = this.currentPosition.clone();
     nextPosition.playMove({ ...move, promotionType });
@@ -29,11 +27,11 @@ export default class ChessGame {
     if (!/^([a-h][1-8]){2}[QRBN]?$/.test(e2e4Notation))
       throw new Error("Invalid move notation.");
 
-    const srcCoords = Coordinates.fromNotation(e2e4Notation.slice(0, 2)),
-      destCoords = Coordinates.fromNotation(e2e4Notation.slice(2, 4)),
-      promotionType = e2e4Notation[5];
-
-    this.playMove(srcCoords!, destCoords!, promotionType as PromotionType | undefined);
+    this.playMove(
+      Coordinates.fromNotation(e2e4Notation.slice(0, 2))!,
+      Coordinates.fromNotation(e2e4Notation.slice(2, 4))!,
+      e2e4Notation[5] as PromotionType | undefined
+    );
   }
 
   getStatus() {
@@ -52,10 +50,7 @@ export default class ChessGame {
 
   addNextPosition(nextPosition: Position) {
     nextPosition.prev = this.currentPosition;
-    if (!this.currentPosition.next)
-      this.currentPosition.next = nextPosition;
-    else
-      this.currentPosition.variations.push(nextPosition);
+    this.currentPosition.nextPositions.push(nextPosition);
     this.currentPosition = nextPosition;
   }
 

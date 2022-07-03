@@ -13,8 +13,7 @@ export default class Position {
   halfMoveClock: number;
   fullMoveNumber: number;
   prev: Position | null = null;
-  next: Position | null = null;
-  variations: Position[] = [];
+  nextPositions: Position[] = [];
 
   constructor(fenString: string) {
     const [
@@ -100,8 +99,10 @@ export default class Position {
     return false;
   }
 
-  // Move a piece to its destination square and return which pieces were moves
-  // so the move can be undone.
+  /**
+   * Move a piece to its destination square and return which pieces were moved
+   * so the move can be undone.
+   */
   startMove(srcCoords: Coordinates, destCoords: Coordinates): [Coordinates, Piece | null][] {
     const srcPiece = this.pieceMap.get(srcCoords)!,
       destPiece = this.pieceMap.get(destCoords) ?? null;
@@ -114,9 +115,8 @@ export default class Position {
     this.pieceMap.delete(srcCoords);
 
     if (srcPiece.isPawn() && destCoords === this.enPassantCoords) {
-      const enPassantCoords = destCoords.getPeer({ xOffset: 0, yOffset: -srcPiece.direction })!,
-        enPassantPawn = this.pieceMap.get(enPassantCoords)!;
-      undoInfo.push([enPassantCoords, enPassantPawn]);
+      const enPassantCoords = destCoords.getPeer(0, -srcPiece.direction)!;
+      undoInfo.push([enPassantCoords, this.pieceMap.get(enPassantCoords)!]);
       this.pieceMap.delete(enPassantCoords);
     }
 
@@ -149,7 +149,7 @@ export default class Position {
         const { wing } = srcPiece;
         this.startMove(
           Coordinates.get(srcCoords.x, Piece.initialRookFiles[wing])!,
-          destCoords.getPeer({ xOffset: 0, yOffset: -wing })!
+          destCoords.getPeer(0, -wing)!
         );
       }
     }
@@ -167,7 +167,7 @@ export default class Position {
 
     // update en passant
     this.enPassantCoords = (isSrcPiecePawn && Math.abs(destCoords.x - srcCoords.x) === 2)
-      ? srcCoords.getPeer({ xOffset: srcPiece.direction, yOffset: 0 })
+      ? srcCoords.getPeer(srcPiece.direction, 0)
       : null;
 
     this.colorToMove = ~this.colorToMove;
