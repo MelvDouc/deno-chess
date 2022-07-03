@@ -55,6 +55,6 @@ function countLegalMoves(pos: Position, max: number, color: Colors): number {
 
 _speedTest(() => {
   console.log(
-    countLegalMoves(new ChessGame().currentPosition, 3, 0)
+    countLegalMoves(new ChessGame().currentPosition, 2, -1)
   );
 });

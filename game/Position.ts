@@ -57,11 +57,8 @@ export default class Position {
 
       for (const destCoords of this.pieceMap.pseudoLegalMoves(piece, this.enPassantCoords)) {
         // Testing the move for check and undoing it.
-        const isPromotion = piece.isPawn() && destCoords.x === Piece.initialPieceRanks[~piece.color];
         const undoInfo = this.startMove(srcCoords, destCoords);
-        if (!this.isCheck()) {
-          moves.push({ srcCoords, destCoords, isPromotion });
-        }
+        this.isCheck() || moves.push({ srcCoords, destCoords });
         this.undoMove(undoInfo);
       }
     }
@@ -69,7 +66,7 @@ export default class Position {
     if (!this.isCheck()) {
       const kingCoords = this.pieceMap.kingCoords[this.colorToMove];
       for (const destCoords of this.pieceMap.castlingMoves(this.pieceMap.get(kingCoords)!, this.castlingRights)) {
-        moves.push({ srcCoords: kingCoords, destCoords, isPromotion: false });
+        moves.push({ srcCoords: kingCoords, destCoords });
       }
     }
 
@@ -132,12 +129,20 @@ export default class Position {
     }
   }
 
-  playMove({ srcCoords, destCoords, isPromotion, promotionType }: Move): this {
-    const srcPiece = this.pieceMap.get(srcCoords)!,
-      destPiece = this.pieceMap.get(destCoords);
-    const isSrcPiecePawn = srcPiece.isPawn(),
-      isPawnMoveOrCapture = isSrcPiecePawn || !!destPiece;
-    this.startMove(srcCoords, destCoords);
+  playMove(move: Move): this {
+    const srcPiece = this.pieceMap.get(move.srcCoords)!,
+      destPiece = this.pieceMap.get(move.destCoords);
+    const isPawnMoveOrCapture = srcPiece.isPawn() || !!destPiece;
+
+    if (this.isPromotion(move))
+      srcPiece.promoteTo(move.promotionType ?? "Q");
+
+    // update en passant
+    this.enPassantCoords = this.isDoublePawnMove(move)
+      ? move.srcCoords.getPeer(srcPiece.direction, 0)
+      : null;
+
+    this.startMove(move.srcCoords, move.destCoords);
 
     // unset castling rights on king move
     if (srcPiece.isKing()) {
@@ -145,35 +150,42 @@ export default class Position {
       this.castlingRights[srcPiece.color][Wings.KING_SIDE] = false;
 
       // move rook on castling
-      if (Math.abs(destCoords.y - srcCoords.y) === 2) {
+      if (this.isCastling(move)) {
         const { wing } = srcPiece;
         this.startMove(
-          Coordinates.get(srcCoords.x, Piece.initialRookFiles[wing])!,
-          destCoords.getPeer(0, -wing)!
+          Coordinates.get(move.srcCoords.x, Piece.initialRookFiles[wing])!,
+          move.destCoords.getPeer(0, -wing)!
         );
       }
     }
 
     // unset castling rights on rook move
-    if (srcPiece.isRook() && !Piece.hasRookMoved(srcCoords, srcPiece.color))
+    if (srcPiece.isRook() && !Piece.hasRookMoved(move.srcCoords, srcPiece.color))
       this.castlingRights[srcPiece.color][srcPiece.wing] = false;
 
     // unset castling rights on rook capture
-    if (destPiece?.isRook() && !Piece.hasRookMoved(destCoords, ~srcPiece.color))
-      this.castlingRights[~srcPiece.color][destPiece.wing] = false;
-
-    if (isPromotion)
-      srcPiece.promoteTo(promotionType ?? "Q");
-
-    // update en passant
-    this.enPassantCoords = (isSrcPiecePawn && Math.abs(destCoords.x - srcCoords.x) === 2)
-      ? srcCoords.getPeer(srcPiece.direction, 0)
-      : null;
+    if (destPiece?.isRook() && !Piece.hasRookMoved(move.destCoords, ~srcPiece.color))
+      this.castlingRights[destPiece.color][destPiece.wing] = false;
 
     this.colorToMove = ~this.colorToMove;
     this.halfMoveClock = isPawnMoveOrCapture ? 0 : this.halfMoveClock + 1;
     this.colorToMove === Colors.WHITE && this.fullMoveNumber++;
     return this;
+  }
+
+  isPromotion(move: Move): boolean {
+    const srcPiece = this.pieceMap.get(move.srcCoords)!;
+    return srcPiece.isPawn()
+      && move.destCoords.x === Piece.initialPieceRanks[~srcPiece.color];
+  }
+
+  isDoublePawnMove(move: Move): boolean {
+    return this.pieceMap.get(move.srcCoords)!.isPawn()
+      && Math.abs(move.destCoords.x - move.srcCoords.x) === 2;
+  }
+
+  isCastling(move: Move): boolean {
+    return Math.abs(move.destCoords.y - move.srcCoords.y) === 2;
   }
 
   clone(): Position {

@@ -28,7 +28,7 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     this.kingCoords = {} as KingCoords;
   }
 
-  set(coords: Coordinates, piece: Piece) {
+  set(coords: Coordinates, piece: Piece): this {
     if (piece.isKing())
       this.kingCoords[piece.color] = coords;
     piece.coords = coords;
@@ -80,18 +80,12 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     if (!castlingRights[color][wing])
       return false;
 
-    for (const peer of kingCoords.getPeers(0, wing)) {
-      if (peer.y === Piece.initialRookFiles[wing])
-        break;
+    for (let y = kingCoords.y + wing; y !== Piece.initialRookFiles[wing]; y += wing) {
+      const peer = Coordinates.get(kingCoords.x, y)!;
       if (this.has(peer))
         return false;
-    }
-
-    for (const peer of kingCoords.getPeers(0, wing)) {
-      if (attackedCoordsSet.has(peer))
+      if (y !== 1 && attackedCoordsSet.has(peer))
         return false;
-      if (peer.y === Piece.castledKingFiles[wing])
-        break;
     }
 
     return true;

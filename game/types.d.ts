@@ -1,7 +1,6 @@
 interface Move {
   srcCoords: Coordinates;
   destCoords: Coordinates;
-  isPromotion: boolean;
   promotionType?: PromotionType;
 }
 

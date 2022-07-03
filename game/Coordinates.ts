@@ -38,7 +38,10 @@ export default class Coordinates {
   }
 
   *getPeers(xOffset: number, yOffset: number) {
-    for (let peer = this.getPeer(xOffset, yOffset); peer; peer = peer.getPeer(xOffset, yOffset))
+    let peer = this.getPeer(xOffset, yOffset);
+    while (peer) {
       yield peer;
+      peer = peer.getPeer(xOffset, yOffset);
+    }
   }
 }
