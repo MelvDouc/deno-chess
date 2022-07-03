@@ -26,6 +26,7 @@ export default class Coordinates {
   constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
+    Object.freeze(this);
   }
 
   get notation(): string {
