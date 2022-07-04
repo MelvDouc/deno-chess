@@ -4,7 +4,9 @@ import Piece from "./Piece.ts";
 
 // Keeps tracks of the pieces on the board.
 export default class PieceMap extends Map<Coordinates, Piece> {
-  // Convert the piece portion of an FEN string to an instance of this class.
+  /**
+   * Convert the piece portion of an FEN string to an instance of this class.
+   */
   static fromPieceString(pieceString: string): PieceMap {
     return pieceString
       .split("/")
@@ -36,20 +38,22 @@ export default class PieceMap extends Map<Coordinates, Piece> {
   }
 
   getAttackedCoords(color: Colors): Set<Coordinates> {
-    const attackedCoords = new Set<Coordinates>();
+    const attackedCoordsSet = new Set<Coordinates>();
 
     for (const piece of this.values()) {
       if (piece.color !== color)
         continue;
       for (const coords of this.coordsAttackedByPiece(piece))
-        attackedCoords.add(coords);
+        attackedCoordsSet.add(coords);
     }
 
-    return attackedCoords;
+    return attackedCoordsSet;
   }
 
-  // Determine whether a piece attacks a given index.
-  // Useful to determine if a position is check.
+  /**
+   * Determines whether a piece attacks given coordinates.
+   * Useful to assess whether a position is check.
+   */
   doesPieceAttack(piece: Piece, targetCoords: Coordinates): boolean {
     const xDiff = Math.abs(targetCoords.x - piece.coords.x),
       yDiff = Math.abs(targetCoords.y - piece.coords.y);
@@ -91,7 +95,9 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     return true;
   }
 
-  // Used when converting a position to an FEN string.
+  /**
+   * Used when converting a position to an FEN string.
+   */
   toString(): string {
     return Array
       .from({ length: 8 }, (_, x) => {
@@ -126,7 +132,9 @@ export default class PieceMap extends Map<Coordinates, Piece> {
         yield king.coords.getPeer(0, wing * 2)!;
   }
 
-  // Excludes forward pawn moves and castling moves as they can't be captures.
+  /**
+   * Excludes forward pawn moves and castling moves as they can't be captures.
+   */
   *coordsAttackedByPiece(piece: Piece): CoordsGenerator {
     if (piece.isPawn() || piece.isKing() || piece.isKnight())
       return yield* shortRangePeers(piece);
@@ -134,7 +142,9 @@ export default class PieceMap extends Map<Coordinates, Piece> {
     yield* this.longRangePeers(piece);
   }
 
-  // Get the indices a piece could move to ignoring whether it would cause or resolve a check.
+  /**
+   * Get the indices a piece could move to ignoring whether it would cause or resolve a check.
+   */
   *pseudoLegalMoves(piece: Piece, enPassantCoords: Coordinates | null): CoordsGenerator {
     if (piece.isPawn()) {
       yield* this.forwardPawnMoves(piece);
@@ -151,8 +161,10 @@ export default class PieceMap extends Map<Coordinates, Piece> {
         yield coords;
   }
 
-  // Find the indices attacked by a long range piece.
-  *longRangePeers(piece: Piece) {
+  /**
+   * Find the indices attacked by a long range piece.
+   */
+  *longRangePeers(piece: Piece): CoordsGenerator {
     const { x: xOffsets, y: yOffsets } = piece.offsets;
 
     for (let i = 0; i < xOffsets.length; i++) {
@@ -168,7 +180,9 @@ export default class PieceMap extends Map<Coordinates, Piece> {
 
 const emptySquare = "1";
 
-// Find the indices attacked by a short range piece.
+/**
+ * Find the indices attacked by a short range piece.
+ */
 function* shortRangePeers(piece: Piece): CoordsGenerator {
   const { x: xOffsets, y: yOffsets } = piece.offsets;
 

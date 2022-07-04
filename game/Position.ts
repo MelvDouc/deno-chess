@@ -14,6 +14,7 @@ export default class Position {
   fullMoveNumber: number;
   prev: Position | null = null;
   nextPositions: Position[] = [];
+  #moves!: Move[];
 
   constructor(fenString: string) {
     const [
@@ -44,33 +45,8 @@ export default class Position {
     ].join(" ");
   }
 
-  // Get all legal moves.
-  getMoves() {
-    const moves: Move[] = [];
-    // The move-testing methods will cause `for (const [srcIndex, piece] of this.pieceMap)`
-    // to become an infinite loop.
-    const entries = [...this.pieceMap];
-
-    for (const [srcCoords, piece] of entries) {
-      if (piece.color !== this.colorToMove)
-        continue;
-
-      for (const destCoords of this.pieceMap.pseudoLegalMoves(piece, this.enPassantCoords)) {
-        // Testing the move for check and undoing it.
-        const undoInfo = this.startMove(srcCoords, destCoords);
-        this.isCheck() || moves.push({ srcCoords, destCoords });
-        this.undoMove(undoInfo);
-      }
-    }
-
-    if (!this.isCheck()) {
-      const kingCoords = this.pieceMap.kingCoords[this.colorToMove];
-      for (const destCoords of this.pieceMap.castlingMoves(this.pieceMap.get(kingCoords)!, this.castlingRights)) {
-        moves.push({ srcCoords: kingCoords, destCoords });
-      }
-    }
-
-    return moves;
+  get moves(): Move[] {
+    return this.#moves;
   }
 
   isCheck(): boolean {
@@ -97,8 +73,8 @@ export default class Position {
   }
 
   /**
-   * Move a piece to its destination square and return which pieces were moved
-   * so the move can be undone.
+   * Move a piece to its destination square.
+   * @returns An array of arrays containing the original coordinates of each piece that was moved or captured and the piece itself. If the move is an en passant capture, the captured pawn and the coordinates it was on are added as well.
    */
   startMove(srcCoords: Coordinates, destCoords: Coordinates): [Coordinates, Piece | null][] {
     const srcPiece = this.pieceMap.get(srcCoords)!,
@@ -112,7 +88,7 @@ export default class Position {
     this.pieceMap.delete(srcCoords);
 
     if (srcPiece.isPawn() && destCoords === this.enPassantCoords) {
-      const enPassantCoords = destCoords.getPeer(0, -srcPiece.direction)!;
+      const enPassantCoords = destCoords.getPeer(-srcPiece.direction, 0)!;
       undoInfo.push([enPassantCoords, this.pieceMap.get(enPassantCoords)!]);
       this.pieceMap.delete(enPassantCoords);
     }
@@ -120,6 +96,9 @@ export default class Position {
     return undoInfo;
   }
 
+  /**
+   * Put every piece back on its old square. Delete it from the square it was moved to as well.
+   */
   undoMove(undoInfo: [Coordinates, Piece | null][]): void {
     for (const [coords, piece] of undoInfo) {
       if (piece)
@@ -129,6 +108,9 @@ export default class Position {
     }
   }
 
+  /**
+   * This is only meant to be used on a clone. The piece on the source square is moved to its destination. All the necessary adjustements resulting from a special move (castling, promotion, etc.) are made. The params of the position are updated so that it represents the position after the half-move was played.
+   */
   playMove(move: Move): this {
     const srcPiece = this.pieceMap.get(move.srcCoords)!,
       destPiece = this.pieceMap.get(move.destCoords);
@@ -185,6 +167,46 @@ export default class Position {
       }
       console.log(row.join(" "));
     }
+  }
+
+  /**
+   * The moves aren't defined in the constructor as a move might have to be played first.
+   */
+  addMoves(): this {
+    this.#moves = this.#getMoves();
+    return this;
+  }
+
+  /**
+   * Get all the legal moves in the position.
+   * Each move is tested to see if it'd be check after it's made.
+   */
+  #getMoves() {
+    const moves: Move[] = [];
+    // The move-testing methods will cause `for (const [srcIndex, piece] of this.pieceMap)`
+    // to become an infinite loop.
+    const entries = [...this.pieceMap];
+
+    for (const [srcCoords, piece] of entries) {
+      if (piece.color !== this.colorToMove)
+        continue;
+
+      for (const destCoords of this.pieceMap.pseudoLegalMoves(piece, this.enPassantCoords)) {
+        // Testing the move for check and undoing it.
+        const undoInfo = this.startMove(srcCoords, destCoords);
+        this.isCheck() || moves.push({ srcCoords, destCoords });
+        this.undoMove(undoInfo);
+      }
+    }
+
+    if (!this.isCheck()) {
+      const kingCoords = this.pieceMap.kingCoords[this.colorToMove];
+      for (const destCoords of this.pieceMap.castlingMoves(this.pieceMap.get(kingCoords)!, this.castlingRights)) {
+        moves.push({ srcCoords: kingCoords, destCoords });
+      }
+    }
+
+    return moves;
   }
 }
 

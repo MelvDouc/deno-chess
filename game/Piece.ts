@@ -1,4 +1,4 @@
-import { Colors, Wings } from "./constants.ts";
+import { Colors, figureOffsets, initialsByPieceColorAndType, PieceTypes, pieceTypesByInitial, Wings } from "./constants.ts";
 
 export default class Piece {
   // Indicates wether a pawn moves up or down the board.
@@ -49,15 +49,15 @@ export default class Piece {
   type: PieceTypes;
   coords!: Coordinates;
 
-  constructor(color: Colors, type: PieceTypes) {
+  constructor(color: Colors, type: PieceTypes, coords?: Coordinates) {
     this.color = color;
     this.type = type;
+    coords != null && (this.coords = coords);
   }
 
   // Used to convert a position to an FEN string.
   get initial(): string {
-    const _initial = initialsByPieceType[this.type];
-    return (this.color === Colors.WHITE) ? _initial.toUpperCase() : _initial;
+    return initialsByPieceColorAndType[this.color][this.type];
   }
 
   get direction(): number {
@@ -78,7 +78,7 @@ export default class Piece {
     return this.coords.y < 4 ? Wings.QUEEN_SIDE : Wings.KING_SIDE;
   }
 
-  // Makes it unnecessary to export the PieceTypes enum.
+  // To avoid having to export the PieceTypes enum.
   isBishop() { return this.type === PieceTypes.BISHOP; }
   isKing() { return this.type === PieceTypes.KING; }
   isKnight() { return this.type === PieceTypes.KNIGHT; }
@@ -109,60 +109,3 @@ export default class Piece {
     }
   }
 }
-
-// ===== ===== ===== ===== =====
-// Utils
-// ===== ===== ===== ===== =====
-
-enum PieceTypes {
-  PAWN,
-  KNIGHT,
-  BISHOP,
-  ROOK,
-  QUEEN,
-  KING
-}
-
-const pieceTypesByInitial: Record<string, PieceTypes> = {
-  p: PieceTypes.PAWN,
-  n: PieceTypes.KNIGHT,
-  b: PieceTypes.BISHOP,
-  r: PieceTypes.ROOK,
-  q: PieceTypes.QUEEN,
-  k: PieceTypes.KING
-};
-
-const initialsByPieceType = {
-  [PieceTypes.PAWN]: "p",
-  [PieceTypes.KNIGHT]: "n",
-  [PieceTypes.BISHOP]: "b",
-  [PieceTypes.ROOK]: "r",
-  [PieceTypes.QUEEN]: "q",
-  [PieceTypes.KING]: "k"
-};
-
-const rookOffsets = {
-  x: [-1, 0, 0, 1],
-  y: [0, -1, 1, 0]
-};
-
-const bishopOffsets = {
-  x: [-1, -1, 1, 1],
-  y: [-1, 1, -1, 1]
-};
-
-const adjacentOffsets = {
-  x: rookOffsets.x.concat(bishopOffsets.x),
-  y: rookOffsets.y.concat(bishopOffsets.y)
-};
-
-const figureOffsets = {
-  [PieceTypes.KNIGHT]: {
-    x: [-2, -2, -1, -1, 1, 1, 2, 2],
-    y: [-1, 1, -2, 2, -2, 2, -1, 1]
-  },
-  [PieceTypes.BISHOP]: bishopOffsets,
-  [PieceTypes.ROOK]: rookOffsets,
-  [PieceTypes.QUEEN]: adjacentOffsets,
-  [PieceTypes.KING]: adjacentOffsets
-};

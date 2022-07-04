@@ -18,7 +18,7 @@ export default class ChessGame {
   #currentPosition: Position;
 
   constructor({ fenString = Position.startFen }: { fenString?: string; moves?: string; } = {}) {
-    this.#currentPosition = new Position(fenString);
+    this.#currentPosition = new Position(fenString).addMoves();
   }
 
   get board() {
@@ -54,6 +54,10 @@ export default class ChessGame {
       : ChessGame.Colors.BLACK;
   }
 
+  get enPassantSquare(): string {
+    return this.#currentPosition.enPassantCoords?.notation ?? "-";
+  }
+
   get halfMoveClock(): number {
     return this.#currentPosition.halfMoveClock;
   }
@@ -66,35 +70,44 @@ export default class ChessGame {
     return this.#currentPosition.fenString;
   }
 
-  playMove(srcCoords: { x: number; y: number; }, destCoords: { x: number; y: number; }, promotionType?: PromotionType): void {
-    if (this.getStatus() !== GameStatuses.ACTIVE)
-      return console.log(`Game is inactive: ${this.#currentPosition.fenString}`);
+  playHalfMove(srcCoords: { x: number; y: number; }, destCoords: { x: number; y: number; }, promotionType?: PromotionType): boolean {
+    const status = this.getStatus();
+    if (status !== GameStatuses.ACTIVE) {
+      warn(`Game is inactive: ${status}.`);
+      return false;
+    }
 
     const _srcCoords = Coordinates.get(srcCoords.x, srcCoords.y);
     const _destCoords = Coordinates.get(destCoords.x, destCoords.y);
 
-    if (!_srcCoords)
-      throw new Error("Invalid source coordinates");
+    if (!_srcCoords) {
+      warn("Invalid source coordinates.");
+      return false;
+    }
 
-    if (!_destCoords)
-      throw new Error("Invalid destination coordinates");
+    if (!_destCoords) {
+      warn("Invalid destination coordinates.");
+      return false;
+    }
 
-    const moves = this.#currentPosition.getMoves();
-    const move = moves.find(move => move.srcCoords === _srcCoords && move.destCoords === _destCoords);
+    const move = this.#currentPosition.moves.find(move => move.srcCoords === _srcCoords && move.destCoords === _destCoords);
 
-    if (!move)
-      return console.log(`Illegal move: ${_srcCoords.notation}-${_destCoords.notation} in ${this.#currentPosition.fenString}`);
+    if (!move) {
+      warn(`Illegal move: ${_srcCoords.notation}-${_destCoords.notation} in ${this.#currentPosition.fenString}`);
+      return false;
+    }
 
     this.#addNextPosition(
-      this.#currentPosition.clone().playMove({ ...move, promotionType })
+      this.#currentPosition.clone().playMove({ ...move, promotionType }).addMoves()
     );
+    return true;
   }
 
-  playMoveUsingNotation(e2e4QNotation: string) {
+  playMoveUsingNotation(e2e4QNotation: string): boolean {
     if (!/^([a-h][1-8]){2}[QRBN]?$/.test(e2e4QNotation))
       throw new Error("Invalid move notation.");
 
-    this.playMove(
+    return this.playHalfMove(
       Coordinates.fromNotation(e2e4QNotation.slice(0, 2))!,
       Coordinates.fromNotation(e2e4QNotation.slice(2, 4))!,
       e2e4QNotation[5] as PromotionType | undefined
@@ -102,17 +115,19 @@ export default class ChessGame {
   }
 
   getStatus() {
+    if (!this.#currentPosition.moves.length) {
+      return this.#currentPosition.isCheck()
+        ? GameStatuses.CHECKMATE
+        : GameStatuses.STALEMATE;
+    }
+
     if (this.#currentPosition.halfMoveClock >= 50)
       return GameStatuses.DRAW_BY_FIFTY_MOVE_RULE;
 
-    if (this.#currentPosition.getMoves().length)
-      return this.#currentPosition.isTripleRepetition()
-        ? GameStatuses.DRAW_BY_TRIPLE_REPETITION
-        : GameStatuses.ACTIVE;
+    if (this.#currentPosition.isTripleRepetition())
+      return GameStatuses.DRAW_BY_TRIPLE_REPETITION;
 
-    return this.#currentPosition.isCheck()
-      ? GameStatuses.CHECKMATE
-      : GameStatuses.STALEMATE;
+    return GameStatuses.ACTIVE;
   }
 
   goToPreviousMove(): this {
@@ -131,7 +146,7 @@ export default class ChessGame {
     this.#currentPosition.log();
   }
 
-  #addNextPosition(nextPosition: Position) {
+  #addNextPosition(nextPosition: Position): void {
     nextPosition.prev = this.#currentPosition;
     this.#currentPosition.nextPositions.push(nextPosition);
     this.#currentPosition = nextPosition;
@@ -154,3 +169,7 @@ export default class ChessGame {
 [BNRQK][a-h]?[1-8]?x?[a-h][1-8] C(g)(5)(x)e4
 0\-0(\-0)?
 */
+
+function warn(message: string) {
+  console.log(`\x1b[33m/!\\\x1b[0m ${message}`);
+}
