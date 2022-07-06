@@ -70,6 +70,12 @@ export default class ChessGame {
     return this.#currentPosition.fenString;
   }
 
+  get legalMoves(): string[] {
+    return this.#currentPosition.moves.map(move => {
+      return move.srcCoords.notation + move.destCoords.notation;
+    });
+  }
+
   playHalfMove(srcCoords: { x: number; y: number; }, destCoords: { x: number; y: number; }, promotionType?: PromotionType): boolean {
     const status = this.getStatus();
     if (status !== GameStatuses.ACTIVE) {

@@ -22,30 +22,27 @@ export default class PieceMap extends Map<Coordinates, Piece> {
       }, new PieceMap());
   }
 
-  // Keep track of where each king is placed to more easily to determine whether a position is check.
-  kingCoords: KingCoords;
+  kings: { [key in Colors]: Piece };
 
   constructor(entries?: [Coordinates, Piece][]) {
     super(entries);
-    this.kingCoords = {} as KingCoords;
+    this.kings = {} as { [key in Colors]: Piece };
   }
 
   set(coords: Coordinates, piece: Piece): this {
     if (piece.isKing())
-      this.kingCoords[piece.color] = coords;
+      this.kings[piece.color] = piece;
     piece.coords = coords;
     return super.set(coords, piece);
   }
 
-  getAttackedCoords(color: Colors): Set<Coordinates> {
+  getAttackedCoordsSet(color: Colors): Set<Coordinates> {
     const attackedCoordsSet = new Set<Coordinates>();
 
-    for (const piece of this.values()) {
-      if (piece.color !== color)
-        continue;
-      for (const coords of this.coordsAttackedByPiece(piece))
-        attackedCoordsSet.add(coords);
-    }
+    for (const piece of this.values())
+      if (piece.color === color)
+        for (const coords of this.coordsAttackedByPiece(piece))
+          attackedCoordsSet.add(coords);
 
     return attackedCoordsSet;
   }
@@ -77,13 +74,8 @@ export default class PieceMap extends Map<Coordinates, Piece> {
   canCastleToWing(
     wing: Wings,
     kingCoords: Coordinates,
-    color: Colors,
-    castlingRights: CastlingRights,
     attackedCoordsSet: Set<Coordinates>
   ): boolean {
-    if (!castlingRights[color][wing])
-      return false;
-
     for (let y = kingCoords.y + wing; y !== Piece.initialRookFiles[wing]; y += wing) {
       const peer = Coordinates.get(kingCoords.x, y)!;
       if (this.has(peer))
@@ -125,10 +117,13 @@ export default class PieceMap extends Map<Coordinates, Piece> {
   }
 
   *castlingMoves(king: Piece, castlingRights: CastlingRights): CoordsGenerator {
-    const attackedCoordsSet = this.getAttackedCoords(~king.color);
+    const attackedCoordsSet = this.getAttackedCoordsSet(~king.color);
 
     for (const wing of [Wings.QUEEN_SIDE, Wings.KING_SIDE])
-      if (this.canCastleToWing(wing, king.coords, king.color, castlingRights, attackedCoordsSet))
+      if (
+        castlingRights[king.color][wing]
+        && this.canCastleToWing(wing, king.coords, attackedCoordsSet)
+      )
         yield king.coords.getPeer(0, wing * 2)!;
   }
 

@@ -21,7 +21,7 @@ export const GameStatuses = Object.freeze({
   ACTIVE: "active",
   CHECKMATE: "checkmate",
   STALEMATE: "stalemate",
-  DRAW_BY_TRIPLE_REPETITION: "draw by triple repition",
+  DRAW_BY_TRIPLE_REPETITION: "draw by triple repetition",
   DRAW_BY_FIFTY_MOVE_RULE: "draw by fifty-move rule"
 });
 

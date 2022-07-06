@@ -46,8 +46,8 @@ export default class Piece {
   }
 
   readonly color: Colors;
-  type: PieceTypes;
   coords!: Coordinates;
+  type: PieceTypes;
 
   constructor(color: Colors, type: PieceTypes, coords?: Coordinates) {
     this.color = color;

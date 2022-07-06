@@ -54,7 +54,7 @@ export default class Position {
   }
 
   isCheck(): boolean {
-    return this.pieceMap.getAttackedCoords(~this.colorToMove).has(this.pieceMap.kingCoords[this.colorToMove]);
+    return this.pieceMap.getAttackedCoordsSet(~this.colorToMove).has(this.pieceMap.kings[this.colorToMove].coords);
   }
 
   isTripleRepetition(): boolean {
@@ -204,7 +204,7 @@ export default class Position {
     }
 
     if (!this.isCheck()) {
-      const kingCoords = this.pieceMap.kingCoords[this.colorToMove];
+      const kingCoords = this.pieceMap.kings[this.colorToMove].coords;
       for (const destCoords of this.pieceMap.castlingMoves(this.pieceMap.get(kingCoords)!, this.castlingRights)) {
         moves.push({ srcCoords: kingCoords, destCoords });
       }
