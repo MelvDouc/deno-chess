@@ -1,4 +1,4 @@
-interface Move {
+interface HalfMove {
   srcCoords: Coordinates;
   destCoords: Coordinates;
   promotionType?: PromotionType;
@@ -7,15 +7,6 @@ interface Move {
 interface PieceOffsets {
   x: number[];
   y: number[];
-}
-
-interface PositionConfig {
-  pieceMap: import("./PieceMap.ts").default;
-  colorToMove: Colors;
-  castlingRights: CastlingRights;
-  enPassantIndex: number;
-  halfMoveClock: number;
-  fullMoveNumber: number;
 }
 
 type CastlingRights = {

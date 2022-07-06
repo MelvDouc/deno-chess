@@ -14,7 +14,7 @@ export default class Position {
   fullMoveNumber: number;
   prev: Position | null = null;
   nextPositions: Position[] = [];
-  #moves!: Move[];
+  #moves!: HalfMove[];
 
   constructor(fenString: string) {
     const [
@@ -45,7 +45,11 @@ export default class Position {
     ].join(" ");
   }
 
-  get moves(): Move[] {
+  get shortenedFenString(): string {
+    return this.fenString.replace(/ \d+ \d+$/, "");
+  }
+
+  get moves(): HalfMove[] {
     return this.#moves;
   }
 
@@ -57,13 +61,11 @@ export default class Position {
     if (!this.prev)
       return false;
 
-    const trimMoveNumbersRegex = / \d+ \d+$/;
-    const fenString = this.fenString.replace(trimMoveNumbersRegex, "");
-    let count = 0;
+    const { shortenedFenString } = this;
 
     // Skipping previous positions with a different color to move.
-    for (let current = this.prev.prev; current; current = current.prev?.prev ?? null) {
-      if (current.fenString.replace(trimMoveNumbersRegex, "") === fenString)
+    for (let current = this.prev.prev, count = 0; current; current = current.prev?.prev ?? null) {
+      if (current.shortenedFenString === shortenedFenString)
         count++;
       if (count === 3)
         return true;
@@ -76,7 +78,7 @@ export default class Position {
    * Move a piece to its destination square.
    * @returns An array of arrays containing the original coordinates of each piece that was moved or captured and the piece itself. If the move is an en passant capture, the captured pawn and the coordinates it was on are added as well.
    */
-  startMove(srcCoords: Coordinates, destCoords: Coordinates): [Coordinates, Piece | null][] {
+  startHalfMove(srcCoords: Coordinates, destCoords: Coordinates): [Coordinates, Piece | null][] {
     const srcPiece = this.pieceMap.get(srcCoords)!,
       destPiece = this.pieceMap.get(destCoords) ?? null;
     const undoInfo: [Coordinates, Piece | null][] = [
@@ -99,7 +101,7 @@ export default class Position {
   /**
    * Put every piece back on its old square. Delete it from the square it was moved to as well.
    */
-  undoMove(undoInfo: [Coordinates, Piece | null][]): void {
+  undoHalfMove(undoInfo: [Coordinates, Piece | null][]): void {
     for (const [coords, piece] of undoInfo) {
       if (piece)
         this.pieceMap.set(coords, piece);
@@ -109,15 +111,17 @@ export default class Position {
   }
 
   /**
-   * This is only meant to be used on a clone. The piece on the source square is moved to its destination. All the necessary adjustements resulting from a special move (castling, promotion, etc.) are made. The params of the position are updated so that it represents the position after the half-move was played.
+   * This is only meant to be used on a clone. The piece on the source square is moved to its destination.
+   * All the necessary adjustements resulting from a special move (castling, promotion, etc.) are made.
+   * The params of the position are updated so that it represents the position after the half-move was played.
    */
-  playMove(move: Move): this {
+  playHalfMove(move: HalfMove): this {
     const srcPiece = this.pieceMap.get(move.srcCoords)!,
       destPiece = this.pieceMap.get(move.destCoords);
     const isSrcPiecePawn = srcPiece.isPawn(),
       isPawnMoveOrCapture = isSrcPiecePawn || !!destPiece;
 
-    this.startMove(move.srcCoords, move.destCoords);
+    this.startHalfMove(move.srcCoords, move.destCoords);
 
     // promotion
     if (isSrcPiecePawn && move.destCoords.x === Piece.initialPieceRanks[~srcPiece.color])
@@ -131,7 +135,7 @@ export default class Position {
       // move rook on castling
       if (Math.abs(move.destCoords.y - move.srcCoords.y) === 2) {
         const { wing } = srcPiece;
-        this.startMove(
+        this.startHalfMove(
           Coordinates.get(move.srcCoords.x, Piece.initialRookFiles[wing])!,
           move.destCoords.getPeer(0, -wing)!
         );
@@ -182,7 +186,7 @@ export default class Position {
    * Each move is tested to see if it'd be check after it's made.
    */
   #getMoves() {
-    const moves: Move[] = [];
+    const moves: HalfMove[] = [];
     // The move-testing methods will cause `for (const [srcIndex, piece] of this.pieceMap)`
     // to become an infinite loop.
     const entries = [...this.pieceMap];
@@ -193,9 +197,9 @@ export default class Position {
 
       for (const destCoords of this.pieceMap.pseudoLegalMoves(piece, this.enPassantCoords)) {
         // Testing the move for check and undoing it.
-        const undoInfo = this.startMove(srcCoords, destCoords);
+        const undoInfo = this.startHalfMove(srcCoords, destCoords);
         this.isCheck() || moves.push({ srcCoords, destCoords });
-        this.undoMove(undoInfo);
+        this.undoHalfMove(undoInfo);
       }
     }
 

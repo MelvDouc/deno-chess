@@ -98,12 +98,15 @@ export default class ChessGame {
     }
 
     this.#addNextPosition(
-      this.#currentPosition.clone().playMove({ ...move, promotionType }).addMoves()
+      this.#currentPosition.clone().playHalfMove({ ...move, promotionType }).addMoves()
     );
     return true;
   }
 
-  playMoveUsingNotation(e2e4QNotation: string): boolean {
+  /**
+   *  Sample notations: e2e4, d7d8N
+   */
+  playHalfMoveUsingNotation(e2e4QNotation: string): boolean {
     if (!/^([a-h][1-8]){2}[QRBN]?$/.test(e2e4QNotation))
       throw new Error("Invalid move notation.");
 
